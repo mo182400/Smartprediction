@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Expense & Sales Code Classifier</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #dfe9f3, #ffffff);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            width: 100%;
+            padding: 20px 40px;
+            background-color: #0078d4;
+            color: white;
+            font-size: 26px;
+            font-weight: bold;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 450px;
+        }
+
+        .drop-zone {
+            border: 2px dashed #0078d4;
+            padding: 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            background-color: #f9fbff;
+        }
+
+        .drop-zone.dragover {
+            background-color: #e6f2ff;
+        }
+
+        button {
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .upload-btn {
+            background-color: #0078d4;
+            color: white;
+        }
+
+        .upload-btn:hover {
+            background-color: #005fa3;
+        }
+
+        .download-btn {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .download-btn:hover {
+            background-color: #218838;
+        }
+
+        .progress-bar {
+            width: 100%;
+            background-color: #eee;
+            border-radius: 6px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .progress {
+            height: 10px;
+            width: 0%;
+            background-color: #0078d4;
+            border-radius: 6px;
+        }
+
+        #status {
+            margin-top: 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="header">
+    📊 Expense & Sales Code Classifier
+</div>
+
+<div class="main">
+
+    <div class="card">
+
+        <div class="drop-zone" id="dropZone">
+            <p>📂 Drag & Drop Excel File Here<br>or click to select</p>
+            <input type="file" id="fileInput" style="display:none;">
+        </div>
+
+        <button class="upload-btn" onclick="upload()">Upload & Process</button>
+
+        <div class="progress-bar" id="progressBar">
+            <div class="progress" id="progress"></div>
+        </div>
+
+        <p id="status"></p>
+
+    </div>
+
+</div>
+
+<script>
+
+let selectedFile = null;
+
+// Elements
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+
+// Click select
+dropZone.onclick = () => fileInput.click();
+
+// File selected
+fileInput.addEventListener("change", (e) => {
+    selectedFile = e.target.files[0];
+    dropZone.innerText = selectedFile.name;
+});
+
+// Drag & drop
+dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("dragover");
+});
+
+dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("dragover");
+});
+
+dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+
+    selectedFile = e.dataTransfer.files[0];
+
+    // Sync file input
+    document.getElementById("fileInput").files = e.dataTransfer.files;
+
+    dropZone.innerText = selectedFile.name;
+});
+
+// Upload
+async function upload() {
+
+    if (!selectedFile) {
+        alert("Please select a file!");
+        return;
+    }
+
+    let formData = new FormData();
+    formData.append("file", selectedFile);
+
+    document.getElementById("status").innerText = "⏳ Processing...";
+    document.getElementById("progressBar").style.display = "block";
+
+    let progress = document.getElementById("progress");
+    let width = 0;
+
+    let interval = setInterval(() => {
+        if (width >= 90) return;
+        width += 5;
+        progress.style.width = width + "%";
+    }, 150);
+
+    try {
+        const response = await fetch("/upload", {
+            method: "POST",
+            body: formData
+        });
+
+        const result = await response.json();
+
+        clearInterval(interval);
+        progress.style.width = "100%";
+
+        document.getElementById("status").innerHTML = `
+            ✅ Processing complete!<br><br>
+            <button class="download-btn" onclick="downloadFile('${result.download_url}')">
+                ⬇️ Download Output File
+            </button>
+        `;
+
+        // Auto reset fallback
+        setTimeout(() => resetUI(), 3000);
+
+    } catch (error) {
+        alert("❌ Error processing file");
+        resetUI();
+    }
+}
+
+// Download + reset
+function downloadFile(url) {
+    window.open(url, "_blank");
+    resetUI(); // immediate reset
+}
+
+// ✅ FULL RESET FIX
+function resetUI() {
+
+    selectedFile = null;
+
+    // 🔥 Critical fix for clearing filename
+    fileInput.value = "";
+    fileInput.type = "text";
+    fileInput.type = "file";
+
+    // Restore drop zone UI
+    dropZone.innerHTML = `
+        <p>📂 Drag & Drop Excel File Here<br>or click to select</p>
+    `;
+
+    dropZone.classList.remove("dragover");
+
+    // Reset progress
+    document.getElementById("progressBar").style.display = "none";
+    document.getElementById("progress").style.width = "0%";
+
+    // Clear status
+    document.getElementById("status").innerHTML = "";
+}
+
+</script>
+
+</body>
+</html>
