@@ -10,15 +10,16 @@ from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import LinearSVC
 
-# -----------------------------
-# SETUP
-# -----------------------------
+import openpyxl
+from openpyxl.styles import PatternFill
+
 app = FastAPI()
+
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
 
 # -----------------------------
-# CLEAN TEXT
+# TEXT CLEAN
 # -----------------------------
 def clean_text(text):
     text = str(text).lower()
@@ -26,7 +27,7 @@ def clean_text(text):
     return text
 
 # -----------------------------
-# LOAD & TRAIN MODEL
+# LOAD DATA
 # -----------------------------
 def load_data():
     df = pd.read_csv("training.csv")
@@ -43,6 +44,9 @@ def load_data():
 
 train_df = load_data()
 
+# -----------------------------
+# MODEL
+# -----------------------------
 model = Pipeline([
     ("tfidf", TfidfVectorizer(
         stop_words='english',
@@ -56,25 +60,21 @@ model.fit(train_df["Description"], train_df["Code"])
 print("✅ Model ready")
 
 # -----------------------------
-# RULE ENGINE
+# RULES
 # -----------------------------
 def apply_rules(text):
-    text = text.lower()
-
     if "tax" in text:
         return 500, 0.99
     if "salary" in text:
         return 300, 0.99
     if "refund" in text:
         return 200, 0.95
-
     return None, None
 
 # -----------------------------
 # PREDICT
 # -----------------------------
 def predict(text):
-
     text_clean = clean_text(text)
 
     code, conf = apply_rules(text_clean)
@@ -85,15 +85,14 @@ def predict(text):
     return int(pred), 0.75
 
 # -----------------------------
-# UPLOAD API
+# UPLOAD
 # -----------------------------
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
 
-    file_id = file.filename.replace(" ", "_")
-
-    input_path = f"uploads/{file_id}"
-    output_path = f"outputs/output_{file_id}"
+    fname = file.filename.replace(" ", "_")
+    input_path = f"uploads/{fname}"
+    output_path = f"outputs/output_{fname}"
 
     with open(input_path, "wb") as f:
         f.write(await file.read())
@@ -101,19 +100,10 @@ async def upload(file: UploadFile = File(...)):
     df = pd.read_excel(input_path)
     df.columns = df.columns.str.strip().str.lower()
 
-    desc_col = None
-    for col in df.columns:
-        if "desc" in col:
-            desc_col = col
-            break
-
-    if desc_col is None:
-        desc_col = df.columns[0]
-
+    desc_col = next((c for c in df.columns if "desc" in c), df.columns[0])
     df[desc_col] = df[desc_col].fillna("")
 
-    codes = []
-    confs = []
+    codes, confs = [], []
 
     for text in df[desc_col]:
         c, conf = predict(text)
@@ -126,33 +116,45 @@ async def upload(file: UploadFile = File(...)):
 
     df.to_excel(output_path, index=False)
 
+    # ✅ Highlight low-confidence rows
+    wb = openpyxl.load_workbook(output_path)
+    ws = wb.active
+
+    red = PatternFill(start_color="FFCCCC", fill_type="solid")
+
+    for row in ws.iter_rows(min_row=2):
+        confidence = row[-2].value  # Confidence column
+        if confidence < 0.7:
+            for cell in row:
+                cell.fill = red
+
+    wb.save(output_path)
+
     return {
-        "download_url": f"/download/output_{file_id}",
+        "download_url": f"/download/output_{fname}",
         "data": df.to_dict(orient="records")
     }
 
 # -----------------------------
 # DOWNLOAD
 # -----------------------------
-@app.get("/download/{file_name}")
-def download(file_name: str):
-    return FileResponse(f"outputs/{file_name}", filename=file_name)
+@app.get("/download/{file}")
+def download(file: str):
+    return FileResponse(f"outputs/{file}", filename=file)
 
 # -----------------------------
 # FEEDBACK
 # -----------------------------
 @app.post("/feedback")
-async def save_feedback(data: dict = Body(...)):
+async def feedback(data: dict = Body(...)):
 
-    desc = data.get("description")
-    code = data.get("code")
-
-    fb = pd.DataFrame([[desc, code]], columns=["Description", "Code"])
+    df = pd.DataFrame([[data["description"], data["code"]]],
+                      columns=["Description", "Code"])
 
     if os.path.exists("feedback.csv"):
-        fb.to_csv("feedback.csv", mode="a", header=False, index=False)
+        df.to_csv("feedback.csv", mode="a", header=False, index=False)
     else:
-        fb.to_csv("feedback.csv", index=False)
+        df.to_csv("feedback.csv", index=False)
 
     return {"status": "saved"}
 
@@ -166,7 +168,7 @@ def retrain():
     df = load_data()
     model.fit(df["Description"], df["Code"])
 
-    return {"status": "retrained"}
+    return {"status": "updated"}
 
 # -----------------------------
 # UI
@@ -176,3 +178,4 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/")
 def home():
     return FileResponse("static/index.html")
+``
