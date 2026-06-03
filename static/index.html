@@ -1,100 +1,105 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Expense & Sales Code Classifier</title>
+<title>Classifier</title>
 
 <style>
 body { font-family: Arial; text-align:center; }
 
-.spinner {
-    border:5px solid #eee;
-    border-top:5px solid #0078d4;
-    border-radius:50%;
-    width:40px;
-    height:40px;
-    animation:spin 1s linear infinite;
-    margin:auto;
+.spinner{
+border:5px solid #ddd;
+border-top:5px solid blue;
+border-radius:50%;
+width:40px;height:40px;
+animation:spin 1s linear infinite;
+margin:auto;
 }
-@keyframes spin {100%{transform:rotate(360deg);}}
+@keyframes spin{100%{transform:rotate(360deg)}}
 
-table { border-collapse: collapse; width:100%; }
-td,th { padding:8px; border:1px solid #ddd; }
+.low{ background:#ffe5e5; }
 
-.low { background:#ffe5e5; }
+table{ width:100%; border-collapse:collapse; }
+td,th{ border:1px solid #ddd; padding:8px; }
+
 </style>
 </head>
 
 <body>
 
-<h2>Expense & Sales Code Classifier</h2>
+<h2>Upload Excel</h2>
 
-<input type="file" id="fileInput">
+<input type="file" id="file">
 <button onclick="upload()">Upload</button>
 
 <div id="loader" style="display:none;">
-    <div class="spinner"></div>
-    <p id="progressText">0%</p>
+<div class="spinner"></div>
+<p id="p">0%</p>
 </div>
 
-<div id="resultTable" style="display:none;">
+<div id="status"></div>
+
+<div id="tableDiv" style="display:none;">
 <table>
 <thead>
 <tr>
 <th>Description</th>
 <th>Predicted</th>
 <th>Confidence</th>
-<th>Correct Code</th>
+<th>Correct</th>
 </tr>
 </thead>
-<tbody id="tableBody"></tbody>
+<tbody id="tbody"></tbody>
 </table>
 
 <br>
-<button onclick="submitCorrections()">✅ Submit Corrections</button>
+<button onclick="submit()">✅ Submit Corrections</button>
 </div>
 
 <script>
-let timer;
-
 async function upload(){
 
-let file=document.getElementById("fileInput").files[0];
+let file=document.getElementById("file").files[0];
 
-let form=new FormData();
-form.append("file",file);
+let fd=new FormData();
+fd.append("file",file);
 
 let loader=document.getElementById("loader");
-let txt=document.getElementById("progressText");
-
 loader.style.display="block";
 
 let p=0;
 let int=setInterval(()=>{
-if(p<90){p+=10; txt.innerText=p+"%";}
+if(p<90){p+=10;document.getElementById("p").innerText=p+"%";}
 },300);
 
-let res=await fetch("/upload",{method:"POST",body:form});
-let data=await res.json();
+let res=await fetch("/upload",{method:"POST",body:fd});
+let r=await res.json();
 
 clearInterval(int);
-txt.innerText="100%";
+document.getElementById("p").innerText="100%";
 loader.style.display="none";
 
-showTable(data.data);
+// ✅ Download FIRST
+document.getElementById("status").innerHTML=
+`✅ Done<br><br>
+<button onclick="window.open('${r.download_url}')">
+Download Excel (Highlighted)
+</button><br><br>
+Review / correct below:`;
 
-startTimer();
+// ✅ THEN show table
+show(r.data);
 }
 
-function showTable(data){
+function show(data){
 
-let body=document.getElementById("tableBody");
-body.innerHTML="";
+let t=document.getElementById("tbody");
+t.innerHTML="";
 
 data.forEach((r,i)=>{
 
 let cls=r.Confidence<0.7?"low":"";
 
-body.innerHTML+=`
+t.innerHTML+=`
 <tr class="${cls}">
 <td>${r.description||r.Description}</td>
 <td>${r.PredictedCode}</td>
@@ -103,12 +108,12 @@ body.innerHTML+=`
 </tr>`;
 });
 
-document.getElementById("resultTable").style.display="block";
+document.getElementById("tableDiv").style.display="block";
 }
 
-async function submitCorrections(){
+async function submit(){
 
-let rows=document.querySelectorAll("#tableBody tr");
+let rows=document.querySelectorAll("#tbody tr");
 
 for(let i=0;i<rows.length;i++){
 
@@ -124,17 +129,8 @@ body:JSON.stringify({description:desc,code:code})
 
 await fetch("/retrain",{method:"POST"});
 
-alert("✅ Model learned!");
+alert("✅ Learning completed!");
 }
-
-function startTimer(){
-clearTimeout(timer);
-timer=setTimeout(()=>location.reload(),60000);
-}
-
-document.addEventListener("mousemove",startTimer);
-document.addEventListener("click",startTimer);
-
 </script>
 
 </body>
