@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Expense & Sales Code Classifier</title>
+
+<style>
+body { font-family: Arial; text-align:center; }
+
+.spinner {
+    border:5px solid #eee;
+    border-top:5px solid #0078d4;
+    border-radius:50%;
+    width:40px;
+    height:40px;
+    animation:spin 1s linear infinite;
+    margin:auto;
+}
+@keyframes spin {100%{transform:rotate(360deg);}}
+
+table { border-collapse: collapse; width:100%; }
+td,th { padding:8px; border:1px solid #ddd; }
+
+.low { background:#ffe5e5; }
+</style>
+</head>
+
+<body>
+
+<h2>Expense & Sales Code Classifier</h2>
+
+<input type="file" id="fileInput">
+<button onclick="upload()">Upload</button>
+
+<div id="loader" style="display:none;">
+    <div class="spinner"></div>
+    <p id="progressText">0%</p>
+</div>
+
+<div id="resultTable" style="display:none;">
+<table>
+<thead>
+<tr>
+<th>Description</th>
+<th>Predicted</th>
+<th>Confidence</th>
+<th>Correct Code</th>
+</tr>
+</thead>
+<tbody id="tableBody"></tbody>
+</table>
+
+<br>
+<button onclick="submitCorrections()">✅ Submit Corrections</button>
+</div>
+
+<script>
+let timer;
+
+async function upload(){
+
+let file=document.getElementById("fileInput").files[0];
+
+let form=new FormData();
+form.append("file",file);
+
+let loader=document.getElementById("loader");
+let txt=document.getElementById("progressText");
+
+loader.style.display="block";
+
+let p=0;
+let int=setInterval(()=>{
+if(p<90){p+=10; txt.innerText=p+"%";}
+},300);
+
+let res=await fetch("/upload",{method:"POST",body:form});
+let data=await res.json();
+
+clearInterval(int);
+txt.innerText="100%";
+loader.style.display="none";
+
+showTable(data.data);
+
+startTimer();
+}
+
+function showTable(data){
+
+let body=document.getElementById("tableBody");
+body.innerHTML="";
+
+data.forEach((r,i)=>{
+
+let cls=r.Confidence<0.7?"low":"";
+
+body.innerHTML+=`
+<tr class="${cls}">
+<td>${r.description||r.Description}</td>
+<td>${r.PredictedCode}</td>
+<td>${r.Confidence}</td>
+<td><input id="c${i}" value="${r.PredictedCode}"></td>
+</tr>`;
+});
+
+document.getElementById("resultTable").style.display="block";
+}
+
+async function submitCorrections(){
+
+let rows=document.querySelectorAll("#tableBody tr");
+
+for(let i=0;i<rows.length;i++){
+
+let desc=rows[i].children[0].innerText;
+let code=document.getElementById("c"+i).value;
+
+await fetch("/feedback",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({description:desc,code:code})
+});
+}
+
+await fetch("/retrain",{method:"POST"});
+
+alert("✅ Model learned!");
+}
+
+function startTimer(){
+clearTimeout(timer);
+timer=setTimeout(()=>location.reload(),60000);
+}
+
+document.addEventListener("mousemove",startTimer);
+document.addEventListener("click",startTimer);
+
+</script>
+
+</body>
+</html>
