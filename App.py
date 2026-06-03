@@ -13,13 +13,14 @@ from sklearn.svm import LinearSVC
 import openpyxl
 from openpyxl.styles import PatternFill
 
+
 app = FastAPI()
 
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
 
 # -----------------------------
-# TEXT CLEAN
+# TEXT CLEANING
 # -----------------------------
 def clean_text(text):
     text = str(text).lower()
@@ -48,15 +49,12 @@ train_df = load_data()
 # MODEL
 # -----------------------------
 model = Pipeline([
-    ("tfidf", TfidfVectorizer(
-        stop_words='english',
-        ngram_range=(1,2),
-        max_features=5000
-    )),
+    ("tfidf", TfidfVectorizer(stop_words='english', ngram_range=(1,2))),
     ("clf", LinearSVC())
 ])
 
 model.fit(train_df["Description"], train_df["Code"])
+
 print("✅ Model ready")
 
 # -----------------------------
@@ -72,7 +70,7 @@ def apply_rules(text):
     return None, None
 
 # -----------------------------
-# PREDICT
+# PREDICTION
 # -----------------------------
 def predict(text):
     text_clean = clean_text(text)
@@ -85,12 +83,13 @@ def predict(text):
     return int(pred), 0.75
 
 # -----------------------------
-# UPLOAD
+# UPLOAD API
 # -----------------------------
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
 
     fname = file.filename.replace(" ", "_")
+
     input_path = f"uploads/{fname}"
     output_path = f"outputs/output_{fname}"
 
@@ -101,9 +100,11 @@ async def upload(file: UploadFile = File(...)):
     df.columns = df.columns.str.strip().str.lower()
 
     desc_col = next((c for c in df.columns if "desc" in c), df.columns[0])
+
     df[desc_col] = df[desc_col].fillna("")
 
-    codes, confs = [], []
+    codes = []
+    confs = []
 
     for text in df[desc_col]:
         c, conf = predict(text)
@@ -116,7 +117,7 @@ async def upload(file: UploadFile = File(...)):
 
     df.to_excel(output_path, index=False)
 
-    # ✅ Highlight low-confidence rows
+    # ✅ Highlight low confidence in Excel
     wb = openpyxl.load_workbook(output_path)
     ws = wb.active
 
@@ -136,30 +137,30 @@ async def upload(file: UploadFile = File(...)):
     }
 
 # -----------------------------
-# DOWNLOAD
+# DOWNLOAD API
 # -----------------------------
 @app.get("/download/{file}")
 def download(file: str):
     return FileResponse(f"outputs/{file}", filename=file)
 
 # -----------------------------
-# FEEDBACK
+# FEEDBACK API
 # -----------------------------
 @app.post("/feedback")
 async def feedback(data: dict = Body(...)):
 
-    df = pd.DataFrame([[data["description"], data["code"]]],
-                      columns=["Description", "Code"])
+    row = pd.DataFrame([[data["description"], data["code"]]],
+                       columns=["Description", "Code"])
 
     if os.path.exists("feedback.csv"):
-        df.to_csv("feedback.csv", mode="a", header=False, index=False)
+        row.to_csv("feedback.csv", mode="a", header=False, index=False)
     else:
-        df.to_csv("feedback.csv", index=False)
+        row.to_csv("feedback.csv", index=False)
 
     return {"status": "saved"}
 
 # -----------------------------
-# RETRAIN
+# RETRAIN API
 # -----------------------------
 @app.post("/retrain")
 def retrain():
@@ -168,14 +169,15 @@ def retrain():
     df = load_data()
     model.fit(df["Description"], df["Code"])
 
+    print("✅ Model retrained")
+
     return {"status": "updated"}
 
 # -----------------------------
-# UI
+# STATIC UI
 # -----------------------------
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 def home():
     return FileResponse("static/index.html")
-``
