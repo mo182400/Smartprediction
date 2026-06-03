@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pandas
+scikit-learn
+openpyxl
+python-multipart
+sentence-transformers
+
+torch==2.12.0+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+
+
+
