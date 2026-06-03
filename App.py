@@ -13,14 +13,13 @@ from sklearn.svm import LinearSVC
 import openpyxl
 from openpyxl.styles import PatternFill
 
-
 app = FastAPI()
 
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
 
 # -----------------------------
-# TEXT CLEANING
+# CLEAN TEXT
 # -----------------------------
 def clean_text(text):
     text = str(text).lower()
@@ -54,7 +53,6 @@ model = Pipeline([
 ])
 
 model.fit(train_df["Description"], train_df["Code"])
-
 print("✅ Model ready")
 
 # -----------------------------
@@ -70,7 +68,7 @@ def apply_rules(text):
     return None, None
 
 # -----------------------------
-# PREDICTION
+# PREDICT
 # -----------------------------
 def predict(text):
     text_clean = clean_text(text)
@@ -100,34 +98,31 @@ async def upload(file: UploadFile = File(...)):
     df.columns = df.columns.str.strip().str.lower()
 
     desc_col = next((c for c in df.columns if "desc" in c), df.columns[0])
-
     df[desc_col] = df[desc_col].fillna("")
 
-    codes = []
-    confs = []
+    codes, confs = [], []
 
     for text in df[desc_col]:
         c, conf = predict(text)
         codes.append(c)
-        confs.append(round(conf, 2))
+        confs.append(round(conf,2))
 
     df["PredictedCode"] = codes
     df["Confidence"] = confs
-    df["LowConfidence"] = df["Confidence"] < 0.7
 
     df.to_excel(output_path, index=False)
 
-    # ✅ Highlight low confidence in Excel
+    # ✅ Yellow highlight (<80%)
     wb = openpyxl.load_workbook(output_path)
     ws = wb.active
 
-    red = PatternFill(start_color="FFCCCC", fill_type="solid")
+    yellow = PatternFill(start_color="FFFF99", fill_type="solid")
 
     for row in ws.iter_rows(min_row=2):
-        confidence = row[-2].value  # Confidence column
-        if confidence < 0.7:
+        confidence = row[-1].value
+        if confidence < 0.8:
             for cell in row:
-                cell.fill = red
+                cell.fill = yellow
 
     wb.save(output_path)
 
@@ -137,14 +132,14 @@ async def upload(file: UploadFile = File(...)):
     }
 
 # -----------------------------
-# DOWNLOAD API
+# DOWNLOAD
 # -----------------------------
 @app.get("/download/{file}")
 def download(file: str):
     return FileResponse(f"outputs/{file}", filename=file)
 
 # -----------------------------
-# FEEDBACK API
+# FEEDBACK
 # -----------------------------
 @app.post("/feedback")
 async def feedback(data: dict = Body(...)):
@@ -160,7 +155,7 @@ async def feedback(data: dict = Body(...)):
     return {"status": "saved"}
 
 # -----------------------------
-# RETRAIN API
+# RETRAIN
 # -----------------------------
 @app.post("/retrain")
 def retrain():
@@ -174,7 +169,7 @@ def retrain():
     return {"status": "updated"}
 
 # -----------------------------
-# STATIC UI
+# UI
 # -----------------------------
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
