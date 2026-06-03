@@ -1,39 +1,85 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Classifier</title>
+<title>AI Classifier</title>
 
 <style>
-body { font-family: Arial; text-align:center; }
+body { font-family:"Segoe UI"; margin:0; background:#f4f6f9; }
 
-.spinner{
-border:5px solid #ddd;
-border-top:5px solid blue;
-border-radius:50%;
-width:40px;height:40px;
-animation:spin 1s linear infinite;
-margin:auto;
+.header {
+    background:#0078d4;
+    color:white;
+    padding:15px;
+    font-size:20px;
 }
+
+.container {
+    display:flex;
+    justify-content:center;
+    margin-top:30px;
+}
+
+.card {
+    background:white;
+    padding:25px;
+    width:700px;
+    border-radius:10px;
+    box-shadow:0 5px 15px rgba(0,0,0,0.1);
+}
+
+/* Drag & Drop */
+.drop-zone {
+    border:2px dashed #0078d4;
+    padding:30px;
+    text-align:center;
+    cursor:pointer;
+}
+
+.drop-zone.dragover {
+    background:#e6f2ff;
+}
+
+/* Table */
+table { width:100%; border-collapse:collapse; margin-top:20px; }
+td,th { padding:8px; border:1px solid #ddd; }
+th { background:#0078d4; color:white; }
+
+/* Colors */
+.low { background:#fff3cd; }
+.changed input { background:#c6f6c6; }
+
+.spinner {
+    border:5px solid #ddd;
+    border-top:5px solid #0078d4;
+    border-radius:50%;
+    width:40px;height:40px;
+    animation:spin 1s linear infinite;
+    margin:auto;
+}
+
 @keyframes spin{100%{transform:rotate(360deg)}}
-
-.low{ background:#ffe5e5; }
-
-table{ width:100%; border-collapse:collapse; }
-td,th{ border:1px solid #ddd; padding:8px; }
-
 </style>
 </head>
 
 <body>
 
-<h2>Upload Excel</h2>
+<div class="header">📊 AI Expense Classifier</div>
 
-<input type="file" id="file">
+<div class="container">
+<div class="card">
+
+<div id="dropZone" class="drop-zone">
+Drag & Drop file or click
+<input type="file" id="fileInput" style="display:none;">
+</div>
+
+<p id="fileName"></p>
+
 <button onclick="upload()">Upload</button>
 
 <div id="loader" style="display:none;">
 <div class="spinner"></div>
-<p id="p">0%</p>
+<p id="progress">0%</p>
 </div>
 
 <div id="status"></div>
@@ -52,84 +98,128 @@ td,th{ border:1px solid #ddd; padding:8px; }
 </table>
 
 <br>
-<button onclick="submit()">✅ Submit Corrections</button>
+<button onclick="submitCorrections()">✅ Submit Changes</button>
+<button onclick="approveAll()">✅ Approve All</button>
+</div>
+
+</div>
 </div>
 
 <script>
+let selectedFile=null;
+
+const dz=document.getElementById("dropZone");
+const fi=document.getElementById("fileInput");
+
+dz.onclick=()=>fi.click();
+
+fi.addEventListener("change",e=>{
+selectedFile=e.target.files[0];
+document.getElementById("fileName").innerText=selectedFile.name;
+});
+
+dz.addEventListener("dragover",e=>{
+e.preventDefault();
+dz.classList.add("dragover");
+});
+dz.addEventListener("dragleave",()=>dz.classList.remove("dragover"));
+dz.addEventListener("drop",e=>{
+e.preventDefault();
+selectedFile=e.dataTransfer.files[0];
+document.getElementById("fileName").innerText=selectedFile.name;
+});
+
+// Upload
 async function upload(){
 
-let file=document.getElementById("file").files[0];
+if(!selectedFile){alert("Select file");return;}
 
 let fd=new FormData();
-fd.append("file",file);
+fd.append("file",selectedFile);
 
 let loader=document.getElementById("loader");
 loader.style.display="block";
 
 let p=0;
 let int=setInterval(()=>{
-if(p<90){p+=10;document.getElementById("p").innerText=p+"%";}
+if(p<90){p+=10;document.getElementById("progress").innerText=p+"%";}
 },300);
 
 let res=await fetch("/upload",{method:"POST",body:fd});
 let r=await res.json();
 
 clearInterval(int);
-document.getElementById("p").innerText="100%";
 loader.style.display="none";
 
-// ✅ Download FIRST
+// Download first
 document.getElementById("status").innerHTML=
-`✅ Done<br><br>
+`✅ Done<br>
 <button onclick="window.open('${r.download_url}')">
-Download Excel (Highlighted)
-</button><br><br>
-Review / correct below:`;
+Download Excel
+</button><br>
+Showing <80% only`;
 
-// ✅ THEN show table
-show(r.data);
+showTable(r.data);
 }
 
-function show(data){
+function showTable(data){
 
 let t=document.getElementById("tbody");
 t.innerHTML="";
 
-data.forEach((r,i)=>{
+let filtered=data.filter(r=>r.Confidence<0.8);
 
-let cls=r.Confidence<0.7?"low":"";
-
+filtered.forEach((r,i)=>{
 t.innerHTML+=`
-<tr class="${cls}">
+<tr class="low">
 <td>${r.description||r.Description}</td>
 <td>${r.PredictedCode}</td>
 <td>${r.Confidence}</td>
-<td><input id="c${i}" value="${r.PredictedCode}"></td>
+<td>
+<input id="c${i}" value="${r.PredictedCode}" 
+data-original="${r.PredictedCode}"
+oninput="markChanged(this)">
+</td>
 </tr>`;
 });
 
 document.getElementById("tableDiv").style.display="block";
 }
 
-async function submit(){
+function markChanged(input){
+let orig=input.dataset.original;
+if(input.value!=orig)
+input.closest("tr").classList.add("changed");
+else
+input.closest("tr").classList.remove("changed");
+}
 
-let rows=document.querySelectorAll("#tbody tr");
+async function submitCorrections(){
 
-for(let i=0;i<rows.length;i++){
+let inputs=document.querySelectorAll("#tbody input");
+let count=0;
 
-let desc=rows[i].children[0].innerText;
-let code=document.getElementById("c"+i).value;
+for(let input of inputs){
+if(input.value!=input.dataset.original){
+
+let desc=input.closest("tr").children[0].innerText;
 
 await fetch("/feedback",{
 method:"POST",
 headers:{"Content-Type":"application/json"},
-body:JSON.stringify({description:desc,code:code})
+body:JSON.stringify({description:desc,code:input.value})
 });
+
+count++;
+}
 }
 
 await fetch("/retrain",{method:"POST"});
+alert(`✅ ${count} rows updated`);
+}
 
-alert("✅ Learning completed!");
+function approveAll(){
+alert("✅ All approved");
 }
 </script>
 
