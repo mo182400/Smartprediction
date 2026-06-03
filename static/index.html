@@ -1,90 +1,140 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>AI Classifier</title>
+<title>AI Expense Classifier</title>
 
 <style>
-body { font-family:"Segoe UI"; margin:0; background:#f4f6f9; }
-
-.header {
-    background:#0078d4;
-    color:white;
-    padding:15px;
-    font-size:20px;
+/* ------------------------------
+GLOBAL
+------------------------------ */
+body {
+    font-family: "Segoe UI", Arial;
+    margin: 0;
+    background: #f4f6f9;
 }
 
+/* ✅ TOP BANNER */
+.header {
+    background: #0078d4;
+    color: white;
+    padding: 18px;
+    font-size: 22px;
+    text-align: center;
+    font-weight: bold;
+}
+
+/* Layout */
 .container {
-    display:flex;
-    justify-content:center;
-    margin-top:30px;
+    display: flex;
+    justify-content: center;
+    margin-top: 40px;
 }
 
 .card {
-    background:white;
-    padding:25px;
-    width:700px;
-    border-radius:10px;
-    box-shadow:0 5px 15px rgba(0,0,0,0.1);
+    background: white;
+    padding: 25px;
+    width: 650px;
+    border-radius: 10px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
 }
 
-/* Drag & Drop */
+/* ✅ SMALLER DROP ZONE */
 .drop-zone {
-    border:2px dashed #0078d4;
-    padding:30px;
-    text-align:center;
-    cursor:pointer;
+    border: 2px dashed #0078d4;
+    padding: 20px;
+    text-align: center;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #fafcff;
+    font-size: 15px;
 }
 
 .drop-zone.dragover {
-    background:#e6f2ff;
+    background: #e6f2ff;
+}
+
+/* ✅ PROGRESS BAR */
+.progress-container {
+    width: 100%;
+    background: #eee;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 15px;
+    display: none;
+}
+
+.progress-bar {
+    height: 12px;
+    width: 0%;
+    background: #0078d4;
+}
+
+/* Buttons */
+button {
+    margin-top: 15px;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #0078d4;
+    color: white;
 }
 
 /* Table */
-table { width:100%; border-collapse:collapse; margin-top:20px; }
-td,th { padding:8px; border:1px solid #ddd; }
-th { background:#0078d4; color:white; }
-
-/* Colors */
-.low { background:#fff3cd; }
-.changed input { background:#c6f6c6; }
-
-.spinner {
-    border:5px solid #ddd;
-    border-top:5px solid #0078d4;
-    border-radius:50%;
-    width:40px;height:40px;
-    animation:spin 1s linear infinite;
-    margin:auto;
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
 }
 
-@keyframes spin{100%{transform:rotate(360deg)}}
+th {
+    background: #0078d4;
+    color: white;
+    padding: 10px;
+}
+
+td {
+    border: 1px solid #ddd;
+    padding: 8px;
+}
+
+/* Colors */
+.low {
+    background: #fff3cd;
+}
+.changed input {
+    background: #c6f6c6;
+}
 </style>
+
 </head>
 
 <body>
 
-<div class="header">📊 AI Expense Classifier</div>
+<div class="header">
+📊 AI Expense Classifier
+</div>
 
 <div class="container">
 <div class="card">
 
+<!-- ✅ DRAG AREA (file name shown HERE) -->
 <div id="dropZone" class="drop-zone">
-Drag & Drop file or click
-<input type="file" id="fileInput" style="display:none;">
+    Drag & Drop file or click
+    <input type="file" id="fileInput" style="display:none;">
 </div>
 
-<p id="fileName"></p>
+<button onclick="upload()">Upload & Process</button>
 
-<button onclick="upload()">Upload</button>
-
-<div id="loader" style="display:none;">
-<div class="spinner"></div>
-<p id="progress">0%</p>
+<!-- ✅ PROGRESS BAR -->
+<div id="progressContainer" class="progress-container">
+    <div id="progressBar" class="progress-bar"></div>
 </div>
 
 <div id="status"></div>
 
 <div id="tableDiv" style="display:none;">
+
 <table>
 <thead>
 <tr>
@@ -100,68 +150,92 @@ Drag & Drop file or click
 <br>
 <button onclick="submitCorrections()">✅ Submit Changes</button>
 <button onclick="approveAll()">✅ Approve All</button>
+
 </div>
 
 </div>
 </div>
 
 <script>
-let selectedFile=null;
 
-const dz=document.getElementById("dropZone");
-const fi=document.getElementById("fileInput");
+let selectedFile = null;
 
-dz.onclick=()=>fi.click();
+// --------------------
+// DRAG & DROP
+// --------------------
+const dz = document.getElementById("dropZone");
+const fi = document.getElementById("fileInput");
 
-fi.addEventListener("change",e=>{
-selectedFile=e.target.files[0];
-document.getElementById("fileName").innerText=selectedFile.name;
+dz.onclick = () => fi.click();
+
+fi.addEventListener("change", (e)=>{
+    selectedFile = e.target.files[0];
+    dz.innerText = selectedFile.name; // ✅ show INSIDE drop box
 });
 
-dz.addEventListener("dragover",e=>{
-e.preventDefault();
-dz.classList.add("dragover");
-});
-dz.addEventListener("dragleave",()=>dz.classList.remove("dragover"));
-dz.addEventListener("drop",e=>{
-e.preventDefault();
-selectedFile=e.dataTransfer.files[0];
-document.getElementById("fileName").innerText=selectedFile.name;
+dz.addEventListener("dragover",(e)=>{
+    e.preventDefault();
+    dz.classList.add("dragover");
 });
 
-// Upload
+dz.addEventListener("dragleave",()=>{
+    dz.classList.remove("dragover");
+});
+
+dz.addEventListener("drop",(e)=>{
+    e.preventDefault();
+    dz.classList.remove("dragover");
+    selectedFile = e.dataTransfer.files[0];
+    dz.innerText = selectedFile.name;
+});
+
+// --------------------
+// UPLOAD
+// --------------------
 async function upload(){
 
-if(!selectedFile){alert("Select file");return;}
+if(!selectedFile){
+    alert("Select file");
+    return;
+}
 
-let fd=new FormData();
-fd.append("file",selectedFile);
+let fd = new FormData();
+fd.append("file", selectedFile);
 
-let loader=document.getElementById("loader");
-loader.style.display="block";
+let progressBar = document.getElementById("progressBar");
+let container = document.getElementById("progressContainer");
 
-let p=0;
-let int=setInterval(()=>{
-if(p<90){p+=10;document.getElementById("progress").innerText=p+"%";}
-},300);
+container.style.display = "block";
 
-let res=await fetch("/upload",{method:"POST",body:fd});
-let r=await res.json();
+let width = 0;
 
-clearInterval(int);
-loader.style.display="none";
+let interval = setInterval(()=>{
+    if(width >= 90) return;
+    width += 5;
+    progressBar.style.width = width + "%";
+},200);
 
-// Download first
-document.getElementById("status").innerHTML=
-`✅ Done<br>
+let res = await fetch("/upload",{method:"POST",body:fd});
+let r = await res.json();
+
+clearInterval(interval);
+progressBar.style.width = "100%";
+
+// ✅ download only (no "Done")
+document.getElementById("status").innerHTML =
+`<br>
 <button onclick="window.open('${r.download_url}')">
-Download Excel
-</button><br>
-Showing <80% only`;
+⬇ Download Excel
+</button>
+<br><br>
+Showing rows with confidence < 80%`;
 
 showTable(r.data);
 }
 
+// --------------------
+// TABLE
+// --------------------
 function showTable(data){
 
 let t=document.getElementById("tbody");
@@ -170,13 +244,14 @@ t.innerHTML="";
 let filtered=data.filter(r=>r.Confidence<0.8);
 
 filtered.forEach((r,i)=>{
+
 t.innerHTML+=`
 <tr class="low">
 <td>${r.description||r.Description}</td>
 <td>${r.PredictedCode}</td>
 <td>${r.Confidence}</td>
 <td>
-<input id="c${i}" value="${r.PredictedCode}" 
+<input id="c${i}" value="${r.PredictedCode}"
 data-original="${r.PredictedCode}"
 oninput="markChanged(this)">
 </td>
@@ -186,20 +261,28 @@ oninput="markChanged(this)">
 document.getElementById("tableDiv").style.display="block";
 }
 
+// --------------------
+// CHANGE HIGHLIGHT
+// --------------------
 function markChanged(input){
 let orig=input.dataset.original;
+
 if(input.value!=orig)
 input.closest("tr").classList.add("changed");
 else
 input.closest("tr").classList.remove("changed");
 }
 
+// --------------------
+// SUBMIT
+// --------------------
 async function submitCorrections(){
 
 let inputs=document.querySelectorAll("#tbody input");
 let count=0;
 
 for(let input of inputs){
+
 if(input.value!=input.dataset.original){
 
 let desc=input.closest("tr").children[0].innerText;
@@ -215,12 +298,17 @@ count++;
 }
 
 await fetch("/retrain",{method:"POST"});
-alert(`✅ ${count} rows updated`);
+
+alert(`✅ ${count} updated`);
 }
 
+// --------------------
+// APPROVE
+// --------------------
 function approveAll(){
 alert("✅ All approved");
 }
+
 </script>
 
 </body>
