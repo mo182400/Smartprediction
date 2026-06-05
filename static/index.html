@@ -1,0 +1,894 @@
+<!DOCTYPE html><<head>
+    <title>AI Expense Classifier</title>
+
+    <style>
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            margin: 0;
+            background: #f4f6f9;
+            color: #333;
+        }
+
+        .header {
+            background: linear-gradient(90deg, #0078d4, #005ea6);
+            color: white;
+            padding: 18px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .container {
+            display: flex;
+            justify-content: center;
+            margin: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            width: 1340px;
+            border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        }
+
+        .drop-zone {
+            border: 2px dashed #0078d4;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px;
+            cursor: pointer;
+            background: #f8fbff;
+            transition: 0.2s;
+            user-select: none;
+        }
+
+        .drop-zone:hover {
+            background: #eef6ff;
+        }
+
+        .drop-zone.dragover {
+            background: #e6f2ff;
+        }
+
+        .action-row {
+            margin-top: 12px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        #uploadBtn {
+            background: #0078d4;
+            color: white;
+        }
+
+        #uploadBtn:hover {
+            background: #0063b1;
+        }
+
+        #downloadBtn {
+            background: #ccc;
+            color: white;
+            cursor: not-allowed;
+        }
+
+        #approveAllBtn {
+            background: #0f7b0f;
+            color: white;
+        }
+
+        #approveAllBtn:disabled {
+            background: #c7d6c7;
+            color: white;
+            cursor: not-allowed;
+        }
+
+        .sort-btn {
+            background: #eef3f8;
+            border: 1px solid #ccd5e0;
+            color: #333;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .progress-container {
+            height: 10px;
+            background: #eee;
+            margin-top: 12px;
+            display: none;
+            overflow: hidden;
+            border-radius: 6px;
+        }
+
+        .progress-bar {
+            height: 10px;
+            width: 0%;
+            background: #0078d4;
+            transition: width 0.2s;
+        }
+
+        .prediction-area {
+            position: relative;
+            margin-top: 14px;
+        }
+
+        .freeze-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0.60);
+            backdrop-filter: blur(1px);
+            z-index: 20;
+            display: none;
+            border-radius: 8px;
+            pointer-events: all;
+        }
+
+        .freeze-overlay.show {
+            display: block;
+        }
+
+        .freeze-message {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: #5f6b7a;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .summary-box {
+            padding: 14px;
+            border: 1px solid #d7dfe9;
+            border-radius: 10px;
+            background: #fafcff;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .summary-card {
+            background: white;
+            border: 1px solid #e3eaf3;
+            border-radius: 10px;
+            padding: 12px;
+        }
+
+        .summary-title {
+            font-weight: 700;
+            color: #0078d4;
+            margin-bottom: 6px;
+        }
+
+        .summary-line {
+            font-size: 14px;
+            margin: 4px 0;
+        }
+
+        .table-wrapper {
+            max-height: 450px;
+            overflow: auto;
+            border: 1px solid #ccc;
+            margin-top: 16px;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        th {
+            background: #0078d4;
+            color: white;
+            padding: 10px 8px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            white-space: normal;
+        }
+
+        td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            vertical-align: middle;
+        }
+
+        .desc-cell {
+            word-break: break-word;
+        }
+
+        .code-cell {
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .inline-confidence {
+            font-size: 12px;
+            margin-left: 6px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .conf-high {
+            color: green;
+        }
+
+        .conf-mid {
+            color: orange;
+        }
+
+        .conf-low {
+            color: red;
+        }
+
+        .low {
+            background: #fff3cd;
+        }
+
+        .high {
+            background: #f4fff5;
+        }
+
+        input[type="text"] {
+            width: 95%;
+            padding: 7px 9px;
+            border-radius: 6px;
+            border: 1px solid #bfc8d4;
+            box-sizing: border-box;
+        }
+
+        tr.changed input {
+            background: #c6f6c6;
+            border-color: #4caf50;
+        }
+
+        tbody.fade-out {
+            opacity: 0.25;
+            transform: translateY(4px);
+            transition: all 0.18s ease;
+        }
+
+        tbody.fade-in {
+            opacity: 1;
+            transform: translateY(0);
+            transition: all 0.22s ease;
+        }
+
+        .row-submit-btn {
+            background: #0078d4;
+            color: white;
+            width: 100%;
+            padding: 8px 10px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .row-submit-btn:hover {
+            background: #0063b1;
+        }
+
+        .row-submit-btn:disabled {
+            background: #b8cce4;
+            cursor: not-allowed;
+        }
+
+        .submit-success {
+            background: #e8f7e8 !important;
+            color: #0f7b0f !important;
+            border: 1px solid #8ed08e;
+        }
+
+        .small-note {
+            font-size: 12px;
+            color: #667085;
+        }
+
+        .spacer {
+            flex: 1;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="header">📊 AI Expense Classifier</div>
+
+<div class="container">
+    <div class="card">
+
+        <div id="dropZone" class="drop-zone">
+            Drag & Drop or Click
+            <input type="file" id="fileInput" style="display:none;">
+        </div>
+
+        <div class="action-row">
+            <button id="uploadBtn" onclick="upload()">Upload</button>
+            <button id="downloadBtn" disabled>Download</button>
+            <button id="sortBtn" class="sort-btn" onclick="toggleSort()">Sort: Descending ↓</button>
+
+            <select id="confidenceFilter" class="sort-btn" title="Filter rows by overall confidence">
+                <option value="all" selected>All confidence</option>
+                <option value="high">High (&gt;70%)</option>
+                <option value="medium">Medium (40–60%)</option>
+                <option value="low">Low (&lt;40%)</option>
+            </select>
+
+            <div class="spacer"></div>
+
+            <button id="approveAllBtn" onclick="approveAllChanged()" disabled>Approve All Changed Rows</button>
+        </div>
+
+        <div class="small-note" style="margin-top:8px;">
+            Filter defaults to <b>All confidence</b>. Sort defaults to <b>Descending</b>.
+        </div>
+
+        <div id="progressContainer" class="progress-container">
+            <div id="progressBar" class="progress-bar"></div>
+        </div>
+
+        <div class="prediction-area" id="predictionArea">
+
+            <div id="freezeOverlay" class="freeze-overlay">
+                <div class="freeze-message">Sorting...</div>
+            </div>
+
+            <div id="status"></div>
+
+            <div class="table-wrapper">
+                <table>
+                    <colgroup>
+                        <col style="width:26%;">
+                        <col style="width:16%;">
+                        <col style="width:16%;">
+                        <col style="width:10%;">
+                        <col style="width:11%;">
+                        <col style="width:11%;">
+                        <col style="width:10%;">
+                    </colgroup>
+
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Account<br>Item</th>
+                            <th>GST sign</th>
+                            <th>Overall<br>Confidence</th>
+                            <th>Correct<br>Account Item</th>
+                            <th>Correct<br>GST sign</th>
+                            <th>Submit<br>Correction</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<script>
+let selectedFile = null;
+let rawData = [];
+let sortAsc = false; // default descending
+
+const dz = document.getElementById("dropZone");
+const fi = document.getElementById("fileInput");
+const bar = document.getElementById("progressBar");
+const tbody = document.getElementById("tbody");
+const downloadBtn = document.getElementById("downloadBtn");
+const approveAllBtn = document.getElementById("approveAllBtn");
+const progressContainer = document.getElementById("progressContainer");
+const statusDiv = document.getElementById("status");
+const freezeOverlay = document.getElementById("freezeOverlay");
+
+dz.onclick = () => fi.click();
+
+fi.onchange = e => {
+    selectedFile = e.target.files[0];
+    if (selectedFile) {
+        dz.textContent = selectedFile.name;
+    }
+};
+
+dz.ondragover = e => {
+    e.preventDefault();
+    dz.classList.add("dragover");
+};
+
+dz.ondragleave = () => {
+    dz.classList.remove("dragover");
+};
+
+dz.ondrop = e => {
+    e.preventDefault();
+    dz.classList.remove("dragover");
+
+    selectedFile = e.dataTransfer.files[0];
+
+    if (selectedFile) {
+        dz.textContent = selectedFile.name;
+    }
+};
+
+function freezePredictionArea() {
+    freezeOverlay.classList.add("show");
+}
+
+function unfreezePredictionArea() {
+    freezeOverlay.classList.remove("show");
+}
+
+function getClass(v) {
+    let p = Math.round(Number(v || 0) * 100);
+
+    if (p >= 90) return "conf-high";
+    if (p >= 80) return "conf-mid";
+    return "conf-low";
+}
+
+function passesConfidenceFilter(conf) {
+    let p = Math.round(Number(conf || 0) * 100);
+    let type = document.getElementById("confidenceFilter").value;
+
+    if (type === "high") return p > 70;
+    if (type === "medium") return p >= 40 && p <= 60;
+    if (type === "low") return p < 40;
+
+    return true;
+}
+
+function resetPageBeforeUpload() {
+    rawData = [];
+
+    const confidenceFilter = document.getElementById("confidenceFilter");
+    if (confidenceFilter) {
+        confidenceFilter.value = "all";
+    }
+
+    sortAsc = false;
+
+    const sortBtn = document.getElementById("sortBtn");
+    if (sortBtn) {
+        sortBtn.textContent = "Sort: Descending ↓";
+    }
+
+    statusDiv.innerHTML = "";
+    tbody.innerHTML = "";
+
+    approveAllBtn.disabled = true;
+    approveAllBtn.textContent = "Approve All Changed Rows";
+
+    downloadBtn.disabled = true;
+    downloadBtn.style.background = "#ccc";
+    downloadBtn.style.cursor = "not-allowed";
+    downloadBtn.onclick = null;
+
+    progressContainer.style.display = "block";
+    bar.style.width = "0%";
+
+    unfreezePredictionArea();
+}
+
+async function upload() {
+    if (!selectedFile) {
+        alert("Select file");
+        return;
+    }
+
+    resetPageBeforeUpload();
+
+    let w = 0;
+
+    let interval = setInterval(() => {
+        if (w < 90) {
+            w += 5;
+            bar.style.width = w + "%";
+        }
+    }, 200);
+
+    try {
+        const fd = new FormData();
+        fd.append("file", selectedFile);
+
+        const res = await fetch("/upload", {
+            method: "POST",
+            body: fd
+        });
+
+        const r = await res.json();
+
+        if (r.error) {
+            clearInterval(interval);
+            progressContainer.style.display = "none";
+            alert(r.error);
+            return;
+        }
+
+        clearInterval(interval);
+        bar.style.width = "100%";
+
+        setTimeout(() => {
+            progressContainer.style.display = "none";
+        }, 600);
+
+        rawData = r.data || [];
+        render();
+
+        downloadBtn.disabled = false;
+        downloadBtn.style.background = "#28a745";
+        downloadBtn.style.cursor = "pointer";
+        downloadBtn.onclick = () => window.open(r.download_url, "_blank");
+
+        resetDropZone();
+
+    } catch (err) {
+        clearInterval(interval);
+        progressContainer.style.display = "none";
+        console.error(err);
+        alert("Upload or processing failed.");
+    }
+}
+
+function resetDropZone() {
+    selectedFile = null;
+
+    dz.innerHTML = `
+        Drag &amp; Drop or Click
+        <input type="file" id="fileInput" style="display:none;">
+    `;
+
+    const newInput = dz.querySelector("input");
+
+    dz.onclick = () => newInput.click();
+
+    newInput.onchange = e => {
+        selectedFile = e.target.files[0];
+        if (selectedFile) {
+            dz.textContent = selectedFile.name;
+        }
+    };
+}
+
+function render() {
+    let data = [...rawData].filter(r => passesConfidenceFilter(r.Confidence));
+
+    data.sort((a, b) =>
+        sortAsc
+        ? Number(a.Confidence || 0) - Number(b.Confidence || 0)
+        : Number(b.Confidence || 0) - Number(a.Confidence || 0)
+    );
+
+    let total = data.length;
+    let low = data.filter(r => Number(r.Confidence || 0) < 0.8).length;
+    let high = total - low;
+
+    let highPct = total ? Math.round((high / total) * 100) : 0;
+    let lowPct = total ? Math.round((low / total) * 100) : 0;
+
+    let avgOverall = total
+        ? Math.round((data.reduce((s, r) => s + Number(r.Confidence || 0), 0) / total) * 100)
+        : 0;
+
+    let avgCode1 = total
+        ? Math.round((data.reduce((s, r) => s + Number(r.Code1Confidence || 0), 0) / total) * 100)
+        : 0;
+
+    let avgCode2 = total
+        ? Math.round((data.reduce((s, r) => s + Number(r.Code2Match || 0), 0) / total) * 100)
+        : 0;
+
+    let strongCode1 = data.filter(r => Number(r.Code1Confidence || 0) >= 0.8).length;
+    let weakCode1 = total - strongCode1;
+
+    let strongCode2 = data.filter(r => Number(r.Code2Match || 0) >= 0.8).length;
+    let weakCode2 = total - strongCode2;
+
+    statusDiv.innerHTML = `
+        <div class="summary-box">
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-title">Overall</div>
+                    <div class="summary-line">Confident: ${high} (${highPct}%)</div>
+                    <div class="summary-line">Low confidence: ${low} (${lowPct}%)</div>
+                    <div class="summary-line">Average confidence: ${avgOverall}%</div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-title">Account Item</div>
+                    <div class="summary-line">Average confidence: ${avgCode1}%</div>
+                    <div class="summary-line">Strong: ${strongCode1}</div>
+                    <div class="summary-line">Weak: ${weakCode1}</div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-title">GST sign</div>
+                    <div class="summary-line">Average confidence: ${avgCode2}%</div>
+                    <div class="summary-line">Strong: ${strongCode2}</div>
+                    <div class="summary-line">Weak: ${weakCode2}</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    tbody.innerHTML = "";
+
+    data.forEach((r) => {
+        let c1 = r.PredictedCode1 || "";
+
+        let rawC2 = r.PredictedCode2;
+        let c2 = (rawC2 === null || rawC2 === undefined || rawC2 === "") ? "—" : String(rawC2);
+
+        let c1p = Number(r.Code1Confidence || 0);
+        let c2p = Number(r.Code2Match || 0);
+        let ov = Number(r.Confidence || 0);
+
+        const originalIndex = rawData.indexOf(r);
+
+        tbody.innerHTML += `
+            <tr class="${ov < 0.8 ? 'low' : 'high'}" data-row-index="${originalIndex}">
+                <td class="desc-cell">${escapeHtml(r.Description || "")}</td>
+
+                <td class="code-cell">
+                    ${escapeHtml(c1)}
+                    <span class="inline-confidence ${getClass(c1p)}">(${Math.round(c1p * 100)}%)</span>
+                </td>
+
+                <td class="code-cell">
+                    ${escapeHtml(c2)}
+                    <span class="inline-confidence ${getClass(c2p)}">(${Math.round(c2p * 100)}%)</span>
+                </td>
+
+                <td style="text-align:center;">${Math.round(ov * 100)}%</td>
+
+                <td>
+                    <input
+                        type="text"
+                        value="${escapeHtml(c1)}"
+                        data-original="${escapeHtml(c1)}"
+                        oninput="markChanged(this)"
+                    >
+                </td>
+
+                <td>
+                    <input
+                        type="text"
+                        value="${escapeHtml(c2 === "—" ? "" : c2)}"
+                        data-original="${escapeHtml(c2 === "—" ? "" : c2)}"
+                        oninput="markChanged(this)"
+                    >
+                </td>
+
+                <td>
+                    <button class="row-submit-btn" onclick="submitCorrection(this)">Submit</button>
+                </td>
+            </tr>
+        `;
+    });
+
+    refreshApproveAllState();
+}
+
+function markChanged(input) {
+    const row = input.closest("tr");
+    const inputs = row.querySelectorAll("input");
+
+    let changed = false;
+
+    inputs.forEach(i => {
+        if (i.value !== i.dataset.original) {
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        row.classList.add("changed");
+    } else {
+        row.classList.remove("changed");
+    }
+
+    refreshApproveAllState();
+}
+
+function refreshApproveAllState() {
+    const changedRows = document.querySelectorAll("tr.changed");
+    approveAllBtn.disabled = changedRows.length === 0;
+}
+
+async function submitCorrection(btn) {
+    const row = btn.closest("tr");
+    const inputs = row.querySelectorAll("input");
+    const rowIndex = Number(row.dataset.rowIndex);
+
+    if (rowIndex < 0 || !rawData[rowIndex]) {
+        alert("Row data not found.");
+        return;
+    }
+
+    const description = rawData[rowIndex].Description || "";
+    const code1 = inputs[0].value.trim();
+    const code2 = inputs[1].value.trim();
+
+    if (!description || !code1) {
+        alert("Description and Correct Account Item are required.");
+        return;
+    }
+
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = "Submitting...";
+
+    try {
+        const res = await fetch("/feedback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                description: description,
+                code1: code1,
+                code2: code2
+            })
+        });
+
+        const result = await res.json();
+
+        if (result.status === "saved") {
+            inputs[0].dataset.original = code1;
+            inputs[1].dataset.original = code2;
+            row.classList.remove("changed");
+
+            btn.textContent = "Submitted";
+            btn.classList.add("submit-success");
+
+            refreshApproveAllState();
+
+            setTimeout(() => {
+                btn.textContent = "Submit";
+                btn.classList.remove("submit-success");
+                btn.disabled = false;
+            }, 1200);
+        } else {
+            btn.disabled = false;
+            btn.textContent = originalText;
+            alert("Submit failed.");
+        }
+    } catch (err) {
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = originalText;
+        alert("Submit failed.");
+    }
+}
+
+async function approveAllChanged() {
+    const changedRows = Array.from(document.querySelectorAll("tr.changed"));
+
+    if (changedRows.length === 0) {
+        alert("No changed rows to approve.");
+        return;
+    }
+
+    const rows = changedRows.map(row => {
+        const rowIndex = Number(row.dataset.rowIndex);
+        const inputs = row.querySelectorAll("input");
+        return {
+            description: rawData[rowIndex]?.Description || "",
+            code1: inputs[0].value.trim(),
+            code2: inputs[1].value.trim()
+        };
+    }).filter(r => r.description && r.code1);
+
+    if (rows.length === 0) {
+        alert("No valid changed rows to approve.");
+        return;
+    }
+
+    approveAllBtn.disabled = true;
+    const oldText = approveAllBtn.textContent;
+    approveAllBtn.textContent = "Approving...";
+
+    try {
+        const res = await fetch("/approve-bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rows })
+        });
+
+        const result = await res.json();
+
+        if (result.status === "approved") {
+            changedRows.forEach(row => {
+                const inputs = row.querySelectorAll("input");
+                inputs.forEach(i => {
+                    i.dataset.original = i.value.trim();
+                });
+                row.classList.remove("changed");
+
+                const rowBtn = row.querySelector(".row-submit-btn");
+                if (rowBtn) {
+                    rowBtn.textContent = "Approved";
+                    rowBtn.classList.add("submit-success");
+                    setTimeout(() => {
+                        rowBtn.textContent = "Submit";
+                        rowBtn.classList.remove("submit-success");
+                    }, 1200);
+                }
+            });
+
+            alert(`Approved ${result.rows_saved || rows.length} row(s).`);
+        } else {
+            alert("Bulk approve failed.");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Bulk approve failed.");
+    } finally {
+        approveAllBtn.textContent = oldText;
+        refreshApproveAllState();
+    }
+}
+
+function toggleSort() {
+    freezePredictionArea();
+
+    sortAsc = !sortAsc;
+
+    document.getElementById("sortBtn").textContent =
+        sortAsc
+        ? "Sort: Ascending ↑"
+        : "Sort: Descending ↓";
+
+    tbody.classList.remove("fade-in");
+    tbody.classList.add("fade-out");
+
+    setTimeout(() => {
+        render();
+
+        tbody.classList.remove("fade-out");
+        tbody.classList.add("fade-in");
+
+        setTimeout(() => {
+            tbody.classList.remove("fade-in");
+            unfreezePredictionArea();
+        }, 220);
+
+    }, 180);
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+document.getElementById("confidenceFilter").addEventListener("change", () => {
+    render();
+});
+</script>
+
+</body>
+</html>
+<html>
